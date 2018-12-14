@@ -1,6 +1,7 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 
 use rocket::*;
+use rocket::http::*;
 use serde_derive::Deserialize;
 use rocket_contrib::json::Json;
 use log::{info};
@@ -43,8 +44,13 @@ fn message_receive(message: Json<Message>) {
     info!("Received message with text '{}' by user '{}'", &message.text, &message.user);
 }
 
+#[get("/app_status")]
+fn app_status() -> Status {
+    Status::Ok
+}
+
 fn main() {
     rocket::ignite()
-        .mount("/", routes![challenge_receive, message_receive])
+        .mount("/", routes![challenge_receive, message_receive, app_status])
         .launch();
 }
