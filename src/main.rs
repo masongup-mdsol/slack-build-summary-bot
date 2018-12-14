@@ -2,46 +2,25 @@
 
 use rocket::*;
 use rocket::http::*;
-use serde_derive::Deserialize;
+use serde_json::{Value, json};
 use rocket_contrib::json::Json;
 use log::{info};
 
-#[derive(Deserialize)]
-struct UrlVerify {
-    token: String,
-    challenge: String,
-    #[serde(rename = "type")]
-    request_type: String,
-}
-
-#[derive(Deserialize)]
-#[allow(dead_code)]
-struct Message {
-    #[serde(rename = "type")]
-    request_type: String,
-    channel: String,
-    user: String,
-    text: String,
-    ts: String,
-    edited: Option<MessageEdit>,
-}
-
-#[derive(Deserialize)]
-#[allow(dead_code)]
-struct MessageEdit {
-    user: String,
-    ts: String,
-}
-
-#[post("/event", data = "<challenge>", rank = 2)]
-fn challenge_receive(challenge: Json<UrlVerify>) -> String {
-    info!("Received url verify request with token {} and type {}", &challenge.token, &challenge.request_type);
-    challenge.challenge.clone()
-}
-
 #[post("/event", data = "<message>")]
-fn message_receive(message: Json<Message>) {
-    info!("Received message with text '{}' by user '{}'", &message.text, &message.user);
+fn message_receive(message: Json<Value>) -> Result<Json<Value>, Status> {
+    if let Value::Object(message_map) = message.into_inner() {
+        //message_map.get("token").and_then(|token_val| token_val.as_str())
+        match message_map.get("type").and_then(|type_val| type_val.as_str()) {
+            Some("url_verification") => message_map.get("challenge")
+                .and_then(|challenge_val| challenge_val.as_str())
+                .and_then(|challenge_str| Some(Ok(Json(json!({"challenge": challenge_str})))))
+                .unwrap_or_else(|| Err(Status::BadRequest)),
+            _ => Err(Status::BadRequest),
+        }
+    }
+    else {
+        Err(Status::BadRequest)
+    }
 }
 
 #[get("/app_status")]
@@ -51,6 +30,6 @@ fn app_status() -> Status {
 
 fn main() {
     rocket::ignite()
-        .mount("/", routes![challenge_receive, message_receive, app_status])
+        .mount("/", routes![message_receive, app_status])
         .launch();
 }
