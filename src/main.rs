@@ -105,7 +105,19 @@ impl SlackParams {
     }
 }
 
+fn init_logging() {
+    let file_appender = log4rs::append::file::FileAppender::builder()
+        .build("log/production.log")
+        .unwrap();
+    let config = log4rs::config::Config::builder()
+        .appender(log4rs::config::Appender::builder().build("file", Box::new(file_appender)))
+        .build(log4rs::config::Root::builder().appender("file").build(log::LevelFilter::Info)).unwrap();
+    log4rs::init_config(config).expect("Tried to init logging with logger already set");
+}
+
 fn main() {
+    #[cfg(not(debug_assertions))]
+    init_logging();
     let app = rocket::ignite();
     let is_prod = app.config().environment.is_prod();
     app
