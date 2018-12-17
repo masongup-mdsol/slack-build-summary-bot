@@ -3,6 +3,7 @@
 use rocket::*;
 use rocket::http::*;
 use serde_json::{Value, json};
+use serde_derive::Deserialize;
 use rocket_contrib::json::Json;
 use log::{info};
 
@@ -15,11 +16,42 @@ fn message_receive(message: Json<Value>) -> Result<Json<Value>, Status> {
                 .and_then(|challenge_val| challenge_val.as_str())
                 .and_then(|challenge_str| Some(Ok(Json(json!({"challenge": challenge_str})))))
                 .unwrap_or_else(|| Err(Status::BadRequest)),
+            Some("event_callback") => {
+                match message_map.get("event") {
+                    Some(Value::Object(event_obj)) => handle_event_object(event_obj),
+                    _ => Err(Status::BadRequest),
+                }
+            },
             _ => Err(Status::BadRequest),
         }
     }
     else {
         Err(Status::BadRequest)
+    }
+}
+
+#[derive(Deserialize)]
+#[allow(dead_code)]
+struct Message {
+    channel_type: String,
+    channel: String,
+    user: String,
+    text: String,
+    ts: String,
+}
+
+fn handle_event_object(event: &serde_json::map::Map<String, Value>) -> Result<Json<Value>, Status> {
+    match event.get("type").and_then(|t| t.as_str()) {
+        Some("message") => {
+            match serde_json::from_value::<Message>(Value::Object(event.clone())) {
+                Err(_) => Err(Status::BadRequest),
+                Ok(message) => {
+                    info!("Got message from user {} on channel {} with text '{}'", message.user, message.channel, message.text);
+                    Ok(Json(Value::Null))
+                },
+            }
+        },
+        _ => Err(Status::BadRequest)
     }
 }
 
