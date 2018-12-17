@@ -3,6 +3,7 @@
 #[macro_use]
 extern crate log;
 
+use std::env;
 use rocket::*;
 use rocket::http::*;
 use serde_json::{Value, json};
@@ -69,8 +70,43 @@ fn app_status() -> Status {
     Status::Ok
 }
 
+#[allow(dead_code)]
+struct SlackParams {
+    verification_token: String,
+    app_id: String,
+    client_id: String,
+    client_secret: String,
+    signing_secret: String,
+}
+
+impl SlackParams {
+    fn from_env(is_prod: bool) -> SlackParams {
+        if is_prod {
+            SlackParams {
+                verification_token: env::var("SLACK_VERIFICATION_TOKEN").unwrap(),
+                app_id: env::var("SLACK_APP_ID").unwrap(),
+                client_id: env::var("SLACK_client_id").unwrap(),
+                client_secret: env::var("SLACK_CLIENT_SECRET").unwrap(),
+                signing_secret: env::var("SLACK_SIGNING_SECRET").unwrap(),
+            }
+        }
+        else {
+            SlackParams {
+                verification_token: "test".to_string(),
+                app_id: "test".to_string(),
+                client_id: "test".to_string(),
+                client_secret: "test".to_string(),
+                signing_secret: "test".to_string(),
+            }
+        }
+    }
+}
+
 fn main() {
-    rocket::ignite()
+    let app = rocket::ignite();
+    let is_prod = app.config().environment.is_prod();
+    app
         .mount("/", routes![message_receive, app_status])
+        .manage(SlackParams::from_env(is_prod))
         .launch();
 }
