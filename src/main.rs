@@ -81,13 +81,16 @@ struct SlackParams {
 
 impl SlackParams {
     fn from_env(is_prod: bool) -> SlackParams {
+        fn get_env_var(name: &str) -> String {
+            env::var(name).expect(&format!("Unable to access env var {}", name))
+        }
         if is_prod {
             SlackParams {
-                verification_token: env::var("SLACK_VERIFICATION_TOKEN").unwrap(),
-                app_id: env::var("SLACK_APP_ID").unwrap(),
-                client_id: env::var("SLACK_CLIENT_ID").unwrap(),
-                client_secret: env::var("SLACK_CLIENT_SECRET").unwrap(),
-                signing_secret: env::var("SLACK_SIGNING_SECRET").unwrap(),
+                verification_token: get_env_var("SLACK_VERIFICATION_TOKEN"),
+                app_id: get_env_var("SLACK_APP_ID"),
+                client_id: get_env_var("SLACK_CLIENT_ID"),
+                client_secret: get_env_var("SLACK_CLIENT_SECRET"),
+                signing_secret: get_env_var("SLACK_SIGNING_SECRET"),
             }
         }
         else {
