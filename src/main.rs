@@ -1,11 +1,13 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 
+#[macro_use]
+extern crate log;
+
 use rocket::*;
 use rocket::http::*;
 use serde_json::{Value, json};
 use serde_derive::Deserialize;
 use rocket_contrib::json::Json;
-use log::{info};
 
 #[post("/event", data = "<message>")]
 fn message_receive(message: Json<Value>) -> Result<Json<Value>, Status> {
