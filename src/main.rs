@@ -9,10 +9,17 @@ use serde_json::{Value, json};
 use serde_derive::Deserialize;
 use rocket_contrib::json::Json;
 
+#[cfg(test)]
+mod test;
+
 #[post("/event", data = "<message>")]
-fn message_receive(message: Json<Value>) -> Result<Json<Value>, Status> {
+fn message_receive(message: Json<Value>, slack_params: State<SlackParams>) -> Result<Json<Value>, Status> {
     if let Value::Object(message_map) = message.into_inner() {
-        //message_map.get("token").and_then(|token_val| token_val.as_str())
+        let token = message_map.get("token").and_then(|token_val| token_val.as_str());
+        match token {
+            Some(token_str) => info!("Got request token {} against expected token {}", token_str, slack_params.verification_token),
+            None => info!("Did not get request token")
+        }
         match message_map.get("type").and_then(|type_val| type_val.as_str()) {
             Some("url_verification") => message_map.get("challenge")
                 .and_then(|challenge_val| challenge_val.as_str())
