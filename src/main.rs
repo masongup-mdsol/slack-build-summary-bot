@@ -85,7 +85,7 @@ impl SlackParams {
             SlackParams {
                 verification_token: env::var("SLACK_VERIFICATION_TOKEN").unwrap(),
                 app_id: env::var("SLACK_APP_ID").unwrap(),
-                client_id: env::var("SLACK_client_id").unwrap(),
+                client_id: env::var("SLACK_CLIENT_ID").unwrap(),
                 client_secret: env::var("SLACK_CLIENT_SECRET").unwrap(),
                 signing_secret: env::var("SLACK_SIGNING_SECRET").unwrap(),
             }
