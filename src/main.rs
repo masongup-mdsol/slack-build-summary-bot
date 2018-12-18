@@ -56,7 +56,7 @@ struct Message {
     channel_type: String,
     channel: String,
     user: Option<String>,
-    text: String,
+    text: Option<String>,
     ts: String,
     subtype: Option<String>
 }
@@ -70,8 +70,9 @@ fn handle_event_object(event: &serde_json::map::Map<String, Value>) -> Result<Js
                     Err(Status::BadRequest)
                 },
                 Ok(message) => {
-                    info!("Got message from user {:?} on channel {} with subtype {:?} and text '{}'",
-                          message.user, message.channel, message.subtype, message.text);
+                    info!("Got message from user {:?} on channel {} with subtype {:?} and text '{:?}', object keys are {}",
+                          message.user, message.channel, message.subtype, message.text,
+                          event.keys().map(|s| s.as_str()).collect::<Vec<&str>>().join(", "));
                     Ok(Json(Value::Null))
                 },
             }
