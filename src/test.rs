@@ -34,6 +34,12 @@ fn handle_message_object_with_attachment() {
                 "id": 1,
                 "title": "title",
                 "text": "text"
+            },
+            {
+                "color": "2eb886",
+                "fallback": "fallback",
+                "id": 2,
+                "text": "some text"
             }
         ]
     });
