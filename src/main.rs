@@ -75,7 +75,7 @@ struct Message {
 struct Attachment {
     color: String,
     id: u32,
-    title: String,
+    title: Option<String>,
     text: String,
     fallback: String,
 }
@@ -91,7 +91,7 @@ fn handle_event_object(event: &serde_json::map::Map<String, Value>) -> Result<Js
                             info!("Got message from GoCD Bot");
                             if let Some(attachments) = message.attachments {
                                 if let Some(first_attachment) = attachments.first() {
-                                    info!("Got attachments with title {} and text {}",
+                                    info!("Got attachments with title {:?} and text {}",
                                           first_attachment.title, first_attachment.text);
                                 }
                             }
