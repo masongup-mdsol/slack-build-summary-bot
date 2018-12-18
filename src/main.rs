@@ -61,7 +61,7 @@ struct Message {
     event_ts: Option<String>,
     subtype: Option<String>,
     bot_id: Option<String>,
-    attachments: Option<String>,
+    attachments: Option<Value>,
     client_msg_id: Option<String>,
     parent_user_id: Option<String>,
     previous_message: Option<String>,
@@ -80,6 +80,9 @@ fn handle_event_object(event: &serde_json::map::Map<String, Value>) -> Result<Js
                         info!("Got message from user {:?} with subtype {:?} and bot ID {:?} and text '{:?}', object keys are {}",
                               message.user, message.subtype, message.bot_id, message.text,
                               event.keys().map(|s| s.as_str()).collect::<Vec<&str>>().join(", "));
+                        if let Some(attachments) = message.attachments {
+                            info!("Got attachments {}", serde_json::to_string(&attachments).unwrap());
+                        }
                     }
                     Ok(Json(Value::Null))
                 },
