@@ -73,11 +73,11 @@ struct Message {
 #[derive(Deserialize)]
 #[allow(dead_code)]
 struct Attachment {
-    color: String,
+    color: Option<String>,
     id: u32,
     title: Option<String>,
-    text: String,
-    fallback: String,
+    text: Option<String>,
+    fallback: Option<String>,
 }
 
 fn handle_event_object(event: &serde_json::map::Map<String, Value>) -> Result<Json<Value>, String> {
