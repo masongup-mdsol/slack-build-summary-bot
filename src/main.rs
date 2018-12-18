@@ -16,10 +16,10 @@ mod test;
 #[post("/event", data = "<message>")]
 fn message_receive(message: Json<Value>, slack_params: State<SlackParams>) -> Result<Json<Value>, Status> {
     if let Value::Object(message_map) = message.into_inner() {
-        let token = message_map.get("token").and_then(|token_val| token_val.as_str());
-        match token {
-            Some(token_str) => info!("Got request token {} against expected token {}", token_str, slack_params.verification_token),
-            None => info!("Did not get request token")
+        let token_maybe = message_map.get("token").and_then(|token_val| token_val.as_str());
+        if token_maybe.is_none() || token_maybe.unwrap() != slack_params.verification_token {
+            info!("Got a bad or empty verification token");
+            return Err(Status::BadRequest);
         }
         match message_map.get("type").and_then(|type_val| type_val.as_str()) {
             Some("url_verification") => message_map.get("challenge")
