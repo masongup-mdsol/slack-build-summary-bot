@@ -67,7 +67,7 @@ struct Message {
     attachments: Option<Vec<Attachment>>,
     client_msg_id: Option<String>,
     parent_user_id: Option<String>,
-    previous_message: Option<String>,
+    previous_message: Option<Value>,
 }
 
 #[derive(Deserialize)]
