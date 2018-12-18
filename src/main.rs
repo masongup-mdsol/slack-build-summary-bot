@@ -55,9 +55,10 @@ fn message_receive(message: Json<Value>, slack_params: State<SlackParams>) -> Re
 struct Message {
     channel_type: String,
     channel: String,
-    user: String,
+    user: Option<String>,
     text: String,
     ts: String,
+    subtype: Option<String>
 }
 
 fn handle_event_object(event: &serde_json::map::Map<String, Value>) -> Result<Json<Value>, Status> {
@@ -69,7 +70,8 @@ fn handle_event_object(event: &serde_json::map::Map<String, Value>) -> Result<Js
                     Err(Status::BadRequest)
                 },
                 Ok(message) => {
-                    info!("Got message from user {} on channel {} with text '{}'", message.user, message.channel, message.text);
+                    info!("Got message from user {:?} on channel {} with subtype {:?} and text '{}'",
+                          message.user, message.channel, message.subtype, message.text);
                     Ok(Json(Value::Null))
                 },
             }
