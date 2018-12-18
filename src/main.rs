@@ -74,7 +74,7 @@ struct Message {
 #[allow(dead_code)]
 struct Attachment {
     color: Option<String>,
-    id: u32,
+    id: Option<u32>,
     title: Option<String>,
     text: Option<String>,
     fallback: Option<String>,

@@ -36,7 +36,6 @@ fn handle_message_object_with_attachment() {
                 "text": "text"
             },
             {
-                "id": 2,
             }
         ]
     });
