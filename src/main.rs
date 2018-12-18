@@ -30,7 +30,10 @@ fn message_receive(message: Json<Value>, slack_params: State<SlackParams>) -> Re
                     .unwrap_or_else(|| Err(Status::BadRequest)),
                 Some("event_callback") => {
                     match message_map.get("event") {
-                        Some(Value::Object(event_obj)) => handle_event_object(event_obj),
+                        Some(Value::Object(event_obj)) => handle_event_object(event_obj).map_err(|e| {
+                            info!("{}", e);
+                            Status::BadRequest
+                        }),
                         _ => {
                             info!("Got an event_callback without an event");
                             Err(Status::BadRequest)
@@ -61,41 +64,45 @@ struct Message {
     event_ts: Option<String>,
     subtype: Option<String>,
     bot_id: Option<String>,
-    attachments: Option<Value>,
+    attachments: Option<Vec<Attachment>>,
     client_msg_id: Option<String>,
     parent_user_id: Option<String>,
     previous_message: Option<String>,
 }
 
-fn handle_event_object(event: &serde_json::map::Map<String, Value>) -> Result<Json<Value>, Status> {
+#[derive(Deserialize)]
+#[allow(dead_code)]
+struct Attachment {
+    color: String,
+    id: u32,
+    title: String,
+    text: String,
+    fallback: String,
+}
+
+fn handle_event_object(event: &serde_json::map::Map<String, Value>) -> Result<Json<Value>, String> {
     match event.get("type").and_then(|t| t.as_str()) {
         Some("message") => {
             match serde_json::from_value::<Message>(Value::Object(event.clone())) {
-                Err(err) => {
-                    info!("Failed to parse message into expected struct: {}", err);
-                    Err(Status::BadRequest)
-                },
+                Err(err) => Err(format!("Failed to parse message into expected struct: {}", err)),
                 Ok(message) => {
-                    if message.channel == "C2NFP9P7H" {
-                        info!("Got message from user {:?} with subtype {:?} and bot ID {:?} and text '{:?}', object keys are {}",
-                              message.user, message.subtype, message.bot_id, message.text,
-                              event.keys().map(|s| s.as_str()).collect::<Vec<&str>>().join(", "));
-                        if let Some(attachments) = message.attachments {
-                            info!("Got attachments {}", serde_json::to_string(&attachments).unwrap());
+                    if let Some(bot_id) = message.bot_id {
+                        if bot_id == "B2NJE012S" {
+                            info!("Got message from GoCD Bot");
+                            if let Some(attachments) = message.attachments {
+                                if let Some(first_attachment) = attachments.first() {
+                                    info!("Got attachments with title {} and text {}",
+                                          first_attachment.title, first_attachment.text);
+                                }
+                            }
                         }
                     }
                     Ok(Json(Value::Null))
                 },
             }
         },
-        Some(type_str) => {
-            info!("Got unknown event type {}", type_str);
-            Err(Status::BadRequest)
-        }
-        None => {
-            info!("Got no event type");
-            Err(Status::BadRequest)
-        }
+        Some(type_str) => Err(format!("Got unknown event type {}", type_str)),
+        None => Err("Got no event type".to_string()),
     }
 }
 
