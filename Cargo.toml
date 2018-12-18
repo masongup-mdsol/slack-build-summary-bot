@@ -6,11 +6,12 @@ edition = "2018"
 
 [dependencies]
 rocket = "0.4.0"
-serde = "*"
-serde_derive = "*"
-serde_json = "*"
-log = "*"
-log4rs = "*"
+serde = "^1.0.82"
+serde_derive = "^1.0.82"
+serde_json = "^1.0.33"
+log = "^0.4.6"
+log4rs = "^0.8.1"
+regex = "^1"
 
 [dependencies.rocket_contrib]
 version = "0.4.0"

@@ -9,6 +9,7 @@ use rocket::http::*;
 use serde_json::{Value, json};
 use serde_derive::Deserialize;
 use rocket_contrib::json::Json;
+use regex;
 
 #[cfg(test)]
 mod test;
