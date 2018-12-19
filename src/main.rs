@@ -11,7 +11,7 @@ use rocket_contrib::json::Json;
 use regex::Regex;
 
 mod slack;
-use crate::slack::{SlackParams, handle_event_object};
+use crate::slack::{SlackParams, handle_event_object, check_token};
 
 mod build_info_manager;
 use crate::build_info_manager::{BuildInfoManager};
@@ -23,11 +23,10 @@ mod test;
 fn message_receive(message: Json<Value>, slack_params: State<SlackParams>, collector: State<BuildInfoManager>) -> Result<Json<Value>, Status> {
     match message.into_inner() {
         Value::Object(message_map) => {
-            let token_maybe = message_map.get("token").and_then(|token_val| token_val.as_str());
-            if token_maybe.is_none() || token_maybe.unwrap() != slack_params.verification_token {
-                info!("Got a bad or empty verification token");
-                return Err(Status::BadRequest);
-            }
+            check_token(&message_map, &slack_params).map_err(|e| {
+                info!("{}", e);
+                Status::BadRequest
+            })?;
             match message_map.get("type").and_then(|type_val| type_val.as_str()) {
                 Some("url_verification") => message_map.get("challenge")
                     .and_then(|challenge_val| challenge_val.as_str())

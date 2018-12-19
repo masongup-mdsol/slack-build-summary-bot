@@ -32,6 +32,16 @@ struct Attachment {
     fallback: Option<String>,
 }
 
+pub fn check_token(message_map: &serde_json::map::Map<String, Value>, params: &SlackParams) -> Result<(), String> {
+    let token_maybe = message_map.get("token").and_then(|token_val| token_val.as_str());
+    if token_maybe.is_none() || token_maybe.unwrap() != params.verification_token {
+        Err("Got a bad or empty verification token".to_string())
+    }
+    else {
+        Ok(())
+    }
+}
+
 pub fn handle_event_object(event: &serde_json::map::Map<String, Value>, params: &SlackParams, collector: &AcceptBuildInfo) -> Result<Json<Value>, String> {
     match event.get("type").and_then(|t| t.as_str()) {
         Some("message") => {
