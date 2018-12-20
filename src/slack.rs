@@ -5,6 +5,27 @@ use rocket_contrib::json::Json;
 
 use crate::build_info_manager::AcceptBuildInfo;
 
+#[allow(dead_code)]
+pub struct SlackParams {
+    pub verification_token: String,
+    pub app_id: String,
+    pub client_id: String,
+    pub client_secret: String,
+    pub signing_secret: String,
+    pub gocd_bod_id: String,
+    pub title_match_regex: Regex,
+}
+
+pub fn check_token(message_map: &serde_json::map::Map<String, Value>, params: &SlackParams) -> Result<(), String> {
+    let token_maybe = message_map.get("token").and_then(|token_val| token_val.as_str());
+    if token_maybe.is_none() || token_maybe.unwrap() != params.verification_token {
+        Err("Got a bad or empty verification token".to_string())
+    }
+    else {
+        Ok(())
+    }
+}
+
 #[derive(Deserialize)]
 #[allow(dead_code)]
 struct Message {
@@ -30,16 +51,6 @@ struct Attachment {
     title: Option<String>,
     text: Option<String>,
     fallback: Option<String>,
-}
-
-pub fn check_token(message_map: &serde_json::map::Map<String, Value>, params: &SlackParams) -> Result<(), String> {
-    let token_maybe = message_map.get("token").and_then(|token_val| token_val.as_str());
-    if token_maybe.is_none() || token_maybe.unwrap() != params.verification_token {
-        Err("Got a bad or empty verification token".to_string())
-    }
-    else {
-        Ok(())
-    }
 }
 
 pub fn handle_event_object(event: &serde_json::map::Map<String, Value>, params: &SlackParams, collector: &AcceptBuildInfo) -> Result<Json<Value>, String> {
@@ -68,6 +79,10 @@ pub fn handle_event_object(event: &serde_json::map::Map<String, Value>, params: 
     }
 }
 
+pub fn get_regex_string() -> String {
+    r"^Go pipeline stage \[(?P<stage_name>[\w_]+)/(?P<build_num>\d+)/(?P<step_name>\w+)/(?P<number>\d+)\] passed".to_string()
+}
+
 fn process_message(message_text: &String, params: &SlackParams, collector: &AcceptBuildInfo) {
     match params.title_match_regex.captures(message_text) {
         None => info!("Unable to handle message {} with regex", message_text),
@@ -81,15 +96,4 @@ fn process_message(message_text: &String, params: &SlackParams, collector: &Acce
             }
         }
     }
-}
-
-#[allow(dead_code)]
-pub struct SlackParams {
-    pub verification_token: String,
-    pub app_id: String,
-    pub client_id: String,
-    pub client_secret: String,
-    pub signing_secret: String,
-    pub gocd_bod_id: String,
-    pub title_match_regex: Regex,
 }

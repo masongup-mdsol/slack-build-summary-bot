@@ -11,7 +11,7 @@ use rocket_contrib::json::Json;
 use regex::Regex;
 
 mod slack;
-use crate::slack::{SlackParams, handle_event_object, check_token};
+use crate::slack::{SlackParams, handle_event_object, check_token, get_regex_string};
 
 mod build_info_manager;
 use crate::build_info_manager::{BuildInfoManager};
@@ -78,9 +78,7 @@ impl SlackParams {
         fn get_env_var(name: &str) -> String {
             env::var(name).expect(&format!("Unable to access env var {}", name))
         }
-        let regex = Regex::new(
-            r"^Go pipeline stage \[(?P<stage_name>[\w_]+)/(?P<build_num>\d+)/(?P<step_name>\w+)/(?P<number>\d+)\] passed"
-        ).unwrap();
+        let regex = Regex::new(&get_regex_string()).unwrap();
         if is_prod {
             SlackParams {
                 verification_token: get_env_var("SLACK_VERIFICATION_TOKEN"),
