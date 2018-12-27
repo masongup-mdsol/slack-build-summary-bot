@@ -34,10 +34,11 @@ fn message_receive(message: Json<Value>, slack_params: State<SlackParams>, colle
                     .unwrap_or_else(|| Err(Status::BadRequest)),
                 Some("event_callback") => {
                     match message_map.get("event") {
-                        Some(Value::Object(event_obj)) => handle_event_object(event_obj, &slack_params, collector.inner()).map_err(|e| {
-                            info!("{}", e);
-                            Status::BadRequest
-                        }),
+                        Some(Value::Object(event_obj)) =>
+                            handle_event_object(event_obj, &slack_params, collector.inner()).map_err(|e| {
+                                info!("{}", e);
+                                Status::BadRequest
+                            }),
                         _ => {
                             info!("Got an event_callback without an event");
                             Err(Status::BadRequest)
@@ -87,6 +88,7 @@ impl SlackParams {
                 client_secret: get_env_var("SLACK_CLIENT_SECRET"),
                 signing_secret: get_env_var("SLACK_SIGNING_SECRET"),
                 gocd_bod_id: get_env_var("GOCD_BOD_ID"),
+                instance_token: get_env_var("SLACK_INSTANCE_TOKEN"),
                 title_match_regex: regex,
             }
         }
@@ -98,6 +100,7 @@ impl SlackParams {
                 client_secret: "test".to_string(),
                 signing_secret: "test".to_string(),
                 gocd_bod_id: "test".to_string(),
+                instance_token: "test".to_string(),
                 title_match_regex: regex,
             }
         }
@@ -109,9 +112,10 @@ fn main() {
     init_logging();
     let app = rocket::ignite();
     let is_prod = app.config().environment.is_prod();
+    let slack_params = SlackParams::from_env(is_prod);
     app
         .mount("/", routes![message_receive, app_status])
-        .manage(SlackParams::from_env(is_prod))
-        .manage(BuildInfoManager::new())
+        .manage(BuildInfoManager::new(&slack_params.instance_token))
+        .manage(slack_params)
         .launch();
 }

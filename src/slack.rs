@@ -13,6 +13,7 @@ pub struct SlackParams {
     pub client_secret: String,
     pub signing_secret: String,
     pub gocd_bod_id: String,
+    pub instance_token: String,
     pub title_match_regex: Regex,
 }
 
@@ -80,7 +81,7 @@ pub fn handle_event_object(event: &serde_json::map::Map<String, Value>, params: 
 }
 
 pub fn get_regex_string() -> String {
-    r"^Go pipeline stage \[(?P<stage_name>[\w_]+)/(?P<build_num>\d+)/(?P<step_name>\w+)/(?P<number>\d+)\] passed".to_string()
+    r"^Go pipeline stage \[(?P<stage_name>[\w_]+)/(?P<build_num>\d+)/(?P<step_name>\w+)/\d+\] (?P<pass_fail>passed|failed)".to_string()
 }
 
 fn process_message(message_text: &String, params: &SlackParams, collector: &AcceptBuildInfo) {
@@ -89,10 +90,15 @@ fn process_message(message_text: &String, params: &SlackParams, collector: &Acce
         Some(captures) => {
             let stage_name = captures.name("stage_name");
             let build_num = captures.name("build_num").and_then(|m| m.as_str().parse().ok());
-            let _step_name = captures.name("step_name");
-            let _number = captures.name("number");
-            if stage_name.is_some() && build_num.is_some() {
-                collector.new_build_message(stage_name.unwrap().as_str(), build_num.unwrap());
+            let step_name = captures.name("step_name");
+            let pass_fail = captures.name("pass_fail");
+            if stage_name.is_some() && build_num.is_some() && step_name.is_some() && pass_fail.is_some() {
+                collector.new_build_message(
+                    stage_name.unwrap().as_str(),
+                    build_num.unwrap(),
+                    step_name.unwrap().as_str(),
+                    pass_fail.unwrap().as_str()
+                );
             }
         }
     }

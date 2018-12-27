@@ -16,7 +16,7 @@ impl DummyBuildInfoAcceptor {
 }
 
 impl AcceptBuildInfo for DummyBuildInfoAcceptor {
-    fn new_build_message(&self, stage_name: &str, build_num: u32) {
+    fn new_build_message(&self, stage_name: &str, build_num: u32, _build_step: &str, _pass_fail: &str) {
         self.builds_received.borrow_mut().push((stage_name.to_string(), build_num));
     }
 }
