@@ -9,9 +9,12 @@ use rocket::http::*;
 use serde_json::{Value, json};
 use rocket_contrib::json::Json;
 use regex::Regex;
+use ring::digest::SHA256;
+use ring::hmac::VerificationKey;
+
 
 mod slack;
-use crate::slack::{SlackParams, handle_event_object, check_token, get_regex_string};
+use crate::slack::{SlackParams, handle_event_object, check_token, get_regex_string, AuthHeaders};
 
 mod build_info_manager;
 use crate::build_info_manager::{BuildInfoManager};
@@ -20,9 +23,19 @@ use crate::build_info_manager::{BuildInfoManager};
 mod test;
 
 #[post("/event", data = "<message>")]
-fn message_receive(message: Json<Value>, slack_params: State<SlackParams>, collector: State<BuildInfoManager>) -> Result<Json<Value>, Status> {
-    match message.into_inner() {
-        Value::Object(message_map) => {
+fn message_receive(
+    message: String,
+    slack_params: State<SlackParams>,
+    collector: State<BuildInfoManager>,
+    auth_headers: AuthHeaders
+)
+-> Result<Json<Value>, Status> {
+    let auth_result = auth_headers.validate_with_body(&message, &slack_params.signing_secret);
+    if auth_result.is_err() {
+        error!("Failed to verify signature");
+    }
+    match serde_json::from_str(&message) {
+        Ok(Value::Object(message_map)) => {
             check_token(&message_map, &slack_params).map_err(|e| {
                 info!("{}", e);
                 Status::BadRequest
@@ -51,8 +64,8 @@ fn message_receive(message: Json<Value>, slack_params: State<SlackParams>, colle
                 },
             }
         }
-        message_other => {
-            info!("Got invalid request, full body '{}'", serde_json::to_string(&message_other).unwrap());
+        _ => {
+            info!("Got invalid request, full body '{}'", &message);
             Err(Status::BadRequest)
         }
     }
@@ -86,7 +99,7 @@ impl SlackParams {
                 app_id: get_env_var("SLACK_APP_ID"),
                 client_id: get_env_var("SLACK_CLIENT_ID"),
                 client_secret: get_env_var("SLACK_CLIENT_SECRET"),
-                signing_secret: get_env_var("SLACK_SIGNING_SECRET"),
+                signing_secret: VerificationKey::new(&SHA256, get_env_var("SLACK_SIGNING_SECRET").as_bytes()),
                 gocd_bod_id: get_env_var("GOCD_BOD_ID"),
                 instance_token: get_env_var("SLACK_INSTANCE_TOKEN"),
                 title_match_regex: regex,
@@ -98,7 +111,7 @@ impl SlackParams {
                 app_id: "test".to_string(),
                 client_id: "test".to_string(),
                 client_secret: "test".to_string(),
-                signing_secret: "test".to_string(),
+                signing_secret: VerificationKey::new(&SHA256, "test".as_bytes()),
                 gocd_bod_id: "test".to_string(),
                 instance_token: "test".to_string(),
                 title_match_regex: regex,

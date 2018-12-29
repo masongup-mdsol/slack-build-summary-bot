@@ -75,7 +75,7 @@ impl AcceptBuildInfo for BuildInfoManager {
                     Ok(response) => {
                         if let Some(timestamp) = response.ts {
                             entry.insert(BuildInfoEntry {
-                                failed: failed,
+                                failed,
                                 slack_timestamp: timestamp,
                                 last_update_time: Utc::now()
                             });

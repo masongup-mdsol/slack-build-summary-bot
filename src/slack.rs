@@ -2,6 +2,9 @@ use serde_json::{Value};
 use serde_derive::Deserialize;
 use regex::Regex;
 use rocket_contrib::json::Json;
+use rocket::request::{self, FromRequest, Request};
+use rocket::outcome::Outcome::*;
+use ring::hmac::{verify, VerificationKey};
 
 use crate::build_info_manager::AcceptBuildInfo;
 
@@ -11,7 +14,7 @@ pub struct SlackParams {
     pub app_id: String,
     pub client_id: String,
     pub client_secret: String,
-    pub signing_secret: String,
+    pub signing_secret: VerificationKey,
     pub gocd_bod_id: String,
     pub instance_token: String,
     pub title_match_regex: Regex,
@@ -24,6 +27,44 @@ pub fn check_token(message_map: &serde_json::map::Map<String, Value>, params: &S
     }
     else {
         Ok(())
+    }
+}
+
+pub struct AuthHeaders {
+    signature: String,
+    timestamp_str: String,
+}
+
+impl<'a, 'r> FromRequest<'a, 'r> for AuthHeaders {
+    type Error = String;
+
+    fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, Self::Error> {
+        let header_map = request.headers();
+        let maybe_sig = header_map.get_one("X-Slack-Signature");
+        let maybe_ts = header_map.get_one("X-Slack-Request-Timestamp");
+        if maybe_sig.is_some() && maybe_ts.is_some() {
+            Success(AuthHeaders {
+                signature: maybe_sig.unwrap().to_string(),
+                timestamp_str: maybe_ts.unwrap().to_string(),
+            })
+        }
+        else {
+            Failure((rocket::http::Status::Unauthorized , "Missing Signature Headers!".to_string()))
+        }
+    }
+}
+
+impl AuthHeaders {
+    pub fn validate_with_body(&self, body: &str, verify_key: &VerificationKey) -> Result<(), String> {
+        let string_to_sign = format!("v0:{}:{}", &self.timestamp_str, &body);
+        let signature = self.signature.split('=').nth(1).ok_or_else(|| "bad signature".to_string())?;
+        let result = verify(&verify_key, string_to_sign.as_bytes(), signature.as_bytes())
+            .map_err(|_| "bad signature".to_string());
+        if result.is_err() {
+            error!("Failed to verify signature. Using string to sign '{}' and signature str '{}'",
+                   &string_to_sign, &signature);
+        }
+        result
     }
 }
 
