@@ -57,6 +57,37 @@ impl BuildInfoManager {
     }
 }
 
+#[cfg(test)]
+mod manager_tests {
+    use super::*;
+
+    #[test]
+    fn test_clear_old_message_entries() {
+        let manager = BuildInfoManager::new("test_token");
+        {
+            let mut cleanout_time = manager.last_cleanout_time.write().unwrap();
+            *cleanout_time = Utc::now() - Duration::days(2);
+            let mut index_map = manager.message_index.lock().unwrap();
+            index_map.insert(
+                BuildInfoIndex { stage_name: "test".to_string(), build_num: 1 },
+                BuildInfoEntry {
+                    failed: false, slack_timestamp: "test".to_string(), last_update_time: Utc::now() - Duration::hours(1)
+                }
+            );
+            index_map.insert(
+                BuildInfoIndex { stage_name: "test".to_string(), build_num: 2 },
+                BuildInfoEntry {
+                    failed: false, slack_timestamp: "test".to_string(), last_update_time: Utc::now() - Duration::days(1)
+                }
+            );
+            assert_eq!(index_map.len(), 2);
+        }
+        manager.clear_old_message_entries();
+        let index_map = manager.message_index.lock().unwrap();
+        assert_eq!(index_map.len(), 1);
+    }
+}
+
 impl AcceptBuildInfo for BuildInfoManager {
     fn new_build_message(&self, stage_name: &str, build_num: u32, build_step: &str, pass_fail: &str) {
         if !stage_name.starts_with("Delorean") {
