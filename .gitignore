@@ -1,2 +1,6 @@
 /target
 **/*.rs.bk
+.DS_Store
+.idea
+slack-bot.iml
+test_log
