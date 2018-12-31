@@ -61,7 +61,7 @@ impl AuthHeaders {
         let result = verify(&verify_key, string_to_sign.as_bytes(), signature.as_bytes())
             .map_err(|_| "bad signature".to_string());
         if result.is_err() {
-            error!("Failed to verify signature. Using string to sign '{}' and signature str '{}'",
+            info!("Failed to verify signature. Using string to sign '{}' and signature str '{}'",
                    &string_to_sign, &signature);
         }
         result

@@ -32,7 +32,7 @@ fn message_receive(
 -> Result<Json<Value>, Status> {
     let auth_result = auth_headers.validate_with_body(&message, &slack_params.signing_secret);
     if auth_result.is_err() {
-        error!("Failed to verify signature");
+        info!("Failed to verify signature");
     }
     match serde_json::from_str(&message) {
         Ok(Value::Object(message_map)) => {
