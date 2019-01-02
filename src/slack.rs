@@ -14,6 +14,7 @@ use ring::hmac::{verify, VerificationKey};
 use regex::Regex;
 use hex;
 use chrono::prelude::*;
+use time::Duration;
 
 use crate::build_info_manager::AcceptBuildInfo;
 
@@ -27,16 +28,6 @@ pub struct SlackParams {
     pub gocd_bod_id: String,
     pub instance_token: String,
     pub title_match_regex: Regex,
-}
-
-pub fn check_token(message_map: &serde_json::map::Map<String, Value>, params: &SlackParams) -> Result<(), String> {
-    let token_maybe = message_map.get("token").and_then(|token_val| token_val.as_str());
-    if token_maybe.is_none() || token_maybe.unwrap() != params.verification_token {
-        Err("Got a bad or empty verification token".to_string())
-    }
-    else {
-        Ok(())
-    }
 }
 
 pub struct VerifiedSlackJson {
@@ -65,6 +56,11 @@ impl FromDataSimple for VerifiedSlackJson {
             return Failure((Status::Unauthorized , "Missing Signature Headers!".to_string()));
         }
 
+        let timestamp_diff = Utc.timestamp(maybe_ts.unwrap(), 0) - Utc::now();
+        if timestamp_diff > Duration::seconds(60) || timestamp_diff < Duration::seconds(-60) {
+            return Failure((Status::Unauthorized , "Timestamp out of range".to_string()));
+        }
+
         let mut raw_request = String::new();
         if let Err(e) = data.open().take(LIMIT).read_to_string(&mut raw_request) {
             return Failure((Status::InternalServerError , format!("Some kind of badness: {}", e)));
@@ -76,14 +72,9 @@ impl FromDataSimple for VerifiedSlackJson {
         //we should blow up
         let verify_key = &request.guard::<rocket::State<SlackParams>>().unwrap().signing_secret;
         let signature = maybe_sig.unwrap();
-        match verify(&verify_key, string_to_sign.as_bytes(), &signature) {
-            Ok(_) => info!("Signature verify successful"),
-            Err(_) => info!("Failed to verify signature"),
+        if let Err(_) = verify(&verify_key, string_to_sign.as_bytes(), &signature) {
+            return Failure((Status::Unauthorized , "Failed to verify signature".to_string()));
         }
-
-        //verify timestamp too
-        let timestamp_diff = Utc.timestamp(maybe_ts.unwrap(), 0) - Utc::now();
-        info!("Found signature timestamp diff of {} seconds", timestamp_diff.num_seconds());
 
         match serde_json::from_str(&raw_request) {
             Ok(Value::Object(json)) => Success(VerifiedSlackJson { json_obj: json }),

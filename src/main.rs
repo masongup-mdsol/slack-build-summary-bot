@@ -14,7 +14,7 @@ use ring::hmac::VerificationKey;
 
 
 mod slack;
-use crate::slack::{SlackParams, handle_event_object, check_token, get_regex_string, VerifiedSlackJson};
+use crate::slack::{SlackParams, handle_event_object, get_regex_string, VerifiedSlackJson};
 
 mod build_info_manager;
 use crate::build_info_manager::{BuildInfoManager};
@@ -26,10 +26,6 @@ mod test;
 fn message_receive(message_map: VerifiedSlackJson, slack_params: State<SlackParams>, collector: State<BuildInfoManager>)
 -> Result<Json<Value>, Status> {
     let map_obj = message_map.json_obj();
-    check_token(&map_obj, &slack_params).map_err(|e| {
-        info!("{}", e);
-        Status::BadRequest
-    })?;
     match map_obj.get("type").and_then(|type_val| type_val.as_str()) {
         Some("url_verification") => map_obj.get("challenge")
             .and_then(|challenge_val| challenge_val.as_str())
