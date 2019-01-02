@@ -12,6 +12,7 @@ use rocket::http::Status;
 
 use ring::hmac::{verify, VerificationKey};
 use regex::Regex;
+use hex;
 
 use crate::build_info_manager::AcceptBuildInfo;
 
@@ -54,7 +55,9 @@ impl FromDataSimple for VerifiedSlackJson {
 
     fn from_data(request: &Request, data: Data) -> data::Outcome<Self, Self::Error> {
         let header_map = request.headers();
-        let maybe_sig = header_map.get_one("X-Slack-Signature").and_then(|raw| raw.split('=').nth(1));
+        let maybe_sig = header_map.get_one("X-Slack-Signature")
+            .and_then(|raw| raw.split('=').nth(1))
+            .and_then(|hex| hex::decode(hex).ok());
         let maybe_ts = header_map.get_one("X-Slack-Request-Timestamp");
         if maybe_sig.is_none() || maybe_ts.is_none() {
             return Failure((Status::Unauthorized , "Missing Signature Headers!".to_string()));
@@ -71,10 +74,9 @@ impl FromDataSimple for VerifiedSlackJson {
         //we should blow up
         let verify_key = &request.guard::<rocket::State<SlackParams>>().unwrap().signing_secret;
         let signature = maybe_sig.unwrap();
-        match verify(&verify_key, string_to_sign.as_bytes(), signature.as_bytes()) {
+        match verify(&verify_key, string_to_sign.as_bytes(), &signature) {
             Ok(_) => info!("Signature verify successful"),
-            Err(_) => info!("Failed to verify signature. Using string to sign '{}' and signature str '{}'",
-                   &string_to_sign, &signature),
+            Err(_) => info!("Failed to verify signature"),
         }
 
         match serde_json::from_str(&raw_request) {
