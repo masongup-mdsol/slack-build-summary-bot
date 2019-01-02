@@ -40,7 +40,7 @@ impl VerifiedSlackJson {
     }
 }
 
-const LIMIT: u64 = 2000;
+const LIMIT: u64 = 4000;
 
 impl FromDataSimple for VerifiedSlackJson {
     type Error = String;
