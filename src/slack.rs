@@ -13,6 +13,7 @@ use rocket::http::Status;
 use ring::hmac::{verify, VerificationKey};
 use regex::Regex;
 use hex;
+use chrono::prelude::*;
 
 use crate::build_info_manager::AcceptBuildInfo;
 
@@ -58,7 +59,8 @@ impl FromDataSimple for VerifiedSlackJson {
         let maybe_sig = header_map.get_one("X-Slack-Signature")
             .and_then(|raw| raw.split('=').nth(1))
             .and_then(|hex| hex::decode(hex).ok());
-        let maybe_ts = header_map.get_one("X-Slack-Request-Timestamp");
+        let maybe_ts = header_map.get_one("X-Slack-Request-Timestamp")
+            .and_then(|raw| raw.parse().ok());
         if maybe_sig.is_none() || maybe_ts.is_none() {
             return Failure((Status::Unauthorized , "Missing Signature Headers!".to_string()));
         }
@@ -78,6 +80,10 @@ impl FromDataSimple for VerifiedSlackJson {
             Ok(_) => info!("Signature verify successful"),
             Err(_) => info!("Failed to verify signature"),
         }
+
+        //verify timestamp too
+        let timestamp_diff = Utc.timestamp(maybe_ts.unwrap(), 0) - Utc::now();
+        info!("Found signature timestamp diff of {} seconds", timestamp_diff.num_seconds());
 
         match serde_json::from_str(&raw_request) {
             Ok(Value::Object(json)) => Success(VerifiedSlackJson { json_obj: json }),
