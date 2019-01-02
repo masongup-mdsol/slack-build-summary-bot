@@ -1,10 +1,17 @@
-use serde_json::{Value};
+use std::io::Read;
+
+use serde_json::{Value, Map};
 use serde_derive::Deserialize;
-use regex::Regex;
+
 use rocket_contrib::json::Json;
-use rocket::request::{self, FromRequest, Request};
+use rocket::request::Request;
 use rocket::outcome::Outcome::*;
+use rocket::data::{self, FromDataSimple};
+use rocket::Data;
+use rocket::http::Status;
+
 use ring::hmac::{verify, VerificationKey};
+use regex::Regex;
 
 use crate::build_info_manager::AcceptBuildInfo;
 
@@ -30,41 +37,50 @@ pub fn check_token(message_map: &serde_json::map::Map<String, Value>, params: &S
     }
 }
 
-pub struct AuthHeaders {
-    signature: String,
-    timestamp_str: String,
+pub struct VerifiedSlackJson {
+    json_obj: Map<String, Value>,
 }
 
-impl<'a, 'r> FromRequest<'a, 'r> for AuthHeaders {
-    type Error = String;
-
-    fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, Self::Error> {
-        let header_map = request.headers();
-        let maybe_sig = header_map.get_one("X-Slack-Signature");
-        let maybe_ts = header_map.get_one("X-Slack-Request-Timestamp");
-        if maybe_sig.is_some() && maybe_ts.is_some() {
-            Success(AuthHeaders {
-                signature: maybe_sig.unwrap().to_string(),
-                timestamp_str: maybe_ts.unwrap().to_string(),
-            })
-        }
-        else {
-            Failure((rocket::http::Status::Unauthorized , "Missing Signature Headers!".to_string()))
-        }
+impl VerifiedSlackJson {
+    pub fn json_obj(&self) -> &Map<String, Value> {
+        &self.json_obj
     }
 }
 
-impl AuthHeaders {
-    pub fn validate_with_body(&self, body: &str, verify_key: &VerificationKey) -> Result<(), String> {
-        let string_to_sign = format!("v0:{}:{}", &self.timestamp_str, &body);
-        let signature = self.signature.split('=').nth(1).ok_or_else(|| "bad signature".to_string())?;
-        let result = verify(&verify_key, string_to_sign.as_bytes(), signature.as_bytes())
-            .map_err(|_| "bad signature".to_string());
-        if result.is_err() {
-            info!("Failed to verify signature. Using string to sign '{}' and signature str '{}'",
-                   &string_to_sign, &signature);
+const LIMIT: u64 = 2000;
+
+impl FromDataSimple for VerifiedSlackJson {
+    type Error = String;
+
+    fn from_data(request: &Request, data: Data) -> data::Outcome<Self, Self::Error> {
+        let header_map = request.headers();
+        let maybe_sig = header_map.get_one("X-Slack-Signature").and_then(|raw| raw.split('=').nth(1));
+        let maybe_ts = header_map.get_one("X-Slack-Request-Timestamp");
+        if maybe_sig.is_none() || maybe_ts.is_none() {
+            return Failure((Status::Unauthorized , "Missing Signature Headers!".to_string()));
         }
-        result
+
+        let mut raw_request = String::new();
+        if let Err(e) = data.open().take(LIMIT).read_to_string(&mut raw_request) {
+            return Failure((Status::InternalServerError , format!("Some kind of badness: {}", e)));
+        }
+
+        let string_to_sign = format!("v0:{}:{}", &maybe_ts.unwrap(), &raw_request);
+
+        //allow unwrap here because if there isn't a SlackParams state then something is fundamentally wrong and
+        //we should blow up
+        let verify_key = &request.guard::<rocket::State<SlackParams>>().unwrap().signing_secret;
+        let signature = maybe_sig.unwrap();
+        match verify(&verify_key, string_to_sign.as_bytes(), signature.as_bytes()) {
+            Ok(_) => info!("Signature verify successful"),
+            Err(_) => info!("Failed to verify signature. Using string to sign '{}' and signature str '{}'",
+                   &string_to_sign, &signature),
+        }
+
+        match serde_json::from_str(&raw_request) {
+            Ok(Value::Object(json)) => Success(VerifiedSlackJson { json_obj: json }),
+            _ => Failure((Status::BadRequest, format!("Unable to parse JSON"))),
+        }
     }
 }
 

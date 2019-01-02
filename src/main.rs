@@ -14,7 +14,7 @@ use ring::hmac::VerificationKey;
 
 
 mod slack;
-use crate::slack::{SlackParams, handle_event_object, check_token, get_regex_string, AuthHeaders};
+use crate::slack::{SlackParams, handle_event_object, check_token, get_regex_string, VerifiedSlackJson};
 
 mod build_info_manager;
 use crate::build_info_manager::{BuildInfoManager};
@@ -22,52 +22,36 @@ use crate::build_info_manager::{BuildInfoManager};
 #[cfg(test)]
 mod test;
 
-#[post("/event", data = "<message>")]
-fn message_receive(
-    message: String,
-    slack_params: State<SlackParams>,
-    collector: State<BuildInfoManager>,
-    auth_headers: AuthHeaders
-)
+#[post("/event", data = "<message_map>")]
+fn message_receive(message_map: VerifiedSlackJson, slack_params: State<SlackParams>, collector: State<BuildInfoManager>)
 -> Result<Json<Value>, Status> {
-    let auth_result = auth_headers.validate_with_body(&message, &slack_params.signing_secret);
-    if auth_result.is_err() {
-        info!("Failed to verify signature");
-    }
-    match serde_json::from_str(&message) {
-        Ok(Value::Object(message_map)) => {
-            check_token(&message_map, &slack_params).map_err(|e| {
-                info!("{}", e);
-                Status::BadRequest
-            })?;
-            match message_map.get("type").and_then(|type_val| type_val.as_str()) {
-                Some("url_verification") => message_map.get("challenge")
-                    .and_then(|challenge_val| challenge_val.as_str())
-                    .and_then(|challenge_str| Some(Ok(Json(json!({"challenge": challenge_str})))))
-                    .unwrap_or_else(|| Err(Status::BadRequest)),
-                Some("event_callback") => {
-                    match message_map.get("event") {
-                        Some(Value::Object(event_obj)) =>
-                            handle_event_object(event_obj, &slack_params, collector.inner()).map_err(|e| {
-                                info!("{}", e);
-                                Status::BadRequest
-                            }),
-                        _ => {
-                            info!("Got an event_callback without an event");
-                            Err(Status::BadRequest)
-                        },
-                    }
-                },
+    let map_obj = message_map.json_obj();
+    check_token(&map_obj, &slack_params).map_err(|e| {
+        info!("{}", e);
+        Status::BadRequest
+    })?;
+    match map_obj.get("type").and_then(|type_val| type_val.as_str()) {
+        Some("url_verification") => map_obj.get("challenge")
+            .and_then(|challenge_val| challenge_val.as_str())
+            .and_then(|challenge_str| Some(Ok(Json(json!({"challenge": challenge_str})))))
+            .unwrap_or_else(|| Err(Status::BadRequest)),
+        Some("event_callback") => {
+            match map_obj.get("event") {
+                Some(Value::Object(event_obj)) =>
+                    handle_event_object(event_obj, &slack_params, collector.inner()).map_err(|e| {
+                        info!("{}", e);
+                        Status::BadRequest
+                    }),
                 _ => {
-                    info!("Got invalid request, full body '{}'", serde_json::to_string(&message_map).unwrap());
+                    info!("Got an event_callback without an event");
                     Err(Status::BadRequest)
                 },
             }
-        }
+        },
         _ => {
-            info!("Got invalid request, full body '{}'", &message);
+            info!("Got invalid request, full body '{}'", serde_json::to_string(&map_obj).unwrap());
             Err(Status::BadRequest)
-        }
+        },
     }
 }
 
