@@ -81,7 +81,7 @@ fn handle_gocd_build_message() {
                 "color": "2eb886",
                 "fallback": "fallback",
                 "id": 1,
-                "title": "Go pipeline stage [Zeus_ECS_Distro/20/Deploy/1] passed",
+                "title": "Pipeline stage [Zeus_ECS_Distro/20/Deploy/1] passed",
                 "text": "text"
             },
         ],

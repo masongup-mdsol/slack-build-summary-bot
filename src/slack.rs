@@ -137,7 +137,7 @@ pub fn handle_event_object(event: &serde_json::map::Map<String, Value>, params: 
 }
 
 pub fn get_regex_string() -> String {
-    r"^Go pipeline stage \[(?P<stage_name>[\w_]+)/(?P<build_num>\d+)/(?P<step_name>\w+)/\d+\] (?P<pass_fail>passed|failed)".to_string()
+    r"^Pipeline stage \[(?P<stage_name>[\w_]+)/(?P<build_num>\d+)/(?P<step_name>\w+)/\d+\] (?P<pass_fail>passed|failed)".to_string()
 }
 
 fn process_message(message_text: &String, params: &SlackParams, collector: &AcceptBuildInfo) {
