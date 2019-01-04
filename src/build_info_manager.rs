@@ -95,6 +95,7 @@ impl AcceptBuildInfo for BuildInfoManager {
         }
         let index = BuildInfoIndex { stage_name: stage_name.to_string(), build_num: build_num };
         let failed = pass_fail == "failed";
+        info!("Handling build message for {}", &stage_name);
         match self.message_index.lock().unwrap().entry(index) {
             Entry::Vacant(entry) => {
                 let request = PostMessageRequest {
@@ -102,6 +103,7 @@ impl AcceptBuildInfo for BuildInfoManager {
                     text: &format!("GoCD Build for stage {} has reached step {} and {}", &stage_name, &build_step, &pass_fail),
                     ..Default::default()
                 };
+                info!("About to try to create new moessage with text: '{}'", &request.text);
                 match post_message(&self.slack_client, &self.slack_instance_token, &request) {
                     Ok(response) => {
                         if let Some(timestamp) = response.ts {
@@ -124,6 +126,7 @@ impl AcceptBuildInfo for BuildInfoManager {
                     as_user: Some(true),
                     ..Default::default()
                 };
+                info!("About to try to update moessage with text: '{}'", &request.text);
                 match update(&self.slack_client, &self.slack_instance_token, &request) {
                     Err(error) => error!("Got Slack Update error: {:?}", error),
                     Ok(_) => {

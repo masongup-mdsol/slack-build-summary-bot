@@ -142,7 +142,7 @@ pub fn get_regex_string() -> String {
 
 fn process_message(message_text: &String, params: &SlackParams, collector: &AcceptBuildInfo) {
     match params.title_match_regex.captures(message_text) {
-        None => info!("Unable to handle message {} with regex", message_text),
+        None => info!("Unable to handle message '{}' with regex", message_text),
         Some(captures) => {
             let stage_name = captures.name("stage_name");
             let build_num = captures.name("build_num").and_then(|m| m.as_str().parse().ok());
