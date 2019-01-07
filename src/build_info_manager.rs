@@ -99,7 +99,7 @@ impl AcceptBuildInfo for BuildInfoManager {
         match self.message_index.lock().unwrap().entry(index) {
             Entry::Vacant(entry) => {
                 let request = PostMessageRequest {
-                    channel: "#gocd-notifications",
+                    channel: "C2NFP9P7H",
                     text: &format!("GoCD Build for stage {} has reached step {} and {}", &stage_name, &build_step, &pass_fail),
                     ..Default::default()
                 };
@@ -121,7 +121,7 @@ impl AcceptBuildInfo for BuildInfoManager {
                 let mut info_entry = entry.get_mut();
                 let request = UpdateRequest {
                     ts: &info_entry.slack_timestamp,
-                    channel: "#gocd-notifications",
+                    channel: "C2NFP9P7H",
                     text: &format!("GoCD Build for stage {} has reached step {} and {}", &stage_name, &build_step, &pass_fail),
                     as_user: Some(true),
                     ..Default::default()
