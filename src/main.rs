@@ -4,6 +4,7 @@
 extern crate log;
 
 use std::env;
+use std::str::FromStr;
 use rocket::*;
 use rocket::http::*;
 use serde_json::{Value, json};
@@ -58,12 +59,15 @@ fn app_status() -> Status {
 }
 
 fn init_logging() {
+    let log_level = env::var("LOG_LEVEL").ok()
+        .and_then(|ls| log::LevelFilter::from_str(&ls).ok())
+        .unwrap_or(log::LevelFilter::Warn);
     let file_appender = log4rs::append::file::FileAppender::builder()
         .build("log/production.log")
         .unwrap();
     let config = log4rs::config::Config::builder()
         .appender(log4rs::config::Appender::builder().build("file", Box::new(file_appender)))
-        .build(log4rs::config::Root::builder().appender("file").build(log::LevelFilter::Info)).unwrap();
+        .build(log4rs::config::Root::builder().appender("file").build(log_level)).unwrap();
     log4rs::init_config(config).expect("Tried to init logging with logger already set");
 }
 
