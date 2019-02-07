@@ -74,7 +74,7 @@ fn init_logging() {
 impl SlackParams {
     fn from_env(is_prod: bool) -> SlackParams {
         fn get_env_var(name: &str) -> String {
-            env::var(name).expect(&format!("Unable to access env var {}", name))
+            env::var(name).unwrap_or_else(|_| panic!("Unable to access env var {}", name))
         }
         let regex = Regex::new(&get_regex_string()).unwrap();
         if is_prod {
@@ -95,7 +95,7 @@ impl SlackParams {
                 app_id: "test".to_string(),
                 client_id: "test".to_string(),
                 client_secret: "test".to_string(),
-                signing_secret: VerificationKey::new(&SHA256, "test".as_bytes()),
+                signing_secret: VerificationKey::new(&SHA256, b"test"),
                 gocd_bod_id: "test".to_string(),
                 instance_token: "test".to_string(),
                 title_match_regex: regex,

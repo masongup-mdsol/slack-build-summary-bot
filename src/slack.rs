@@ -72,13 +72,13 @@ impl FromDataSimple for VerifiedSlackJson {
         //we should blow up
         let verify_key = &request.guard::<rocket::State<SlackParams>>().unwrap().signing_secret;
         let signature = maybe_sig.unwrap();
-        if let Err(_) = verify(&verify_key, string_to_sign.as_bytes(), &signature) {
+        if verify(&verify_key, string_to_sign.as_bytes(), &signature).is_err() {
             return Failure((Status::Unauthorized , "Failed to verify signature".to_string()));
         }
 
         match serde_json::from_str(&raw_request) {
             Ok(Value::Object(json)) => Success(VerifiedSlackJson { json_obj: json }),
-            _ => Failure((Status::BadRequest, format!("Unable to parse JSON"))),
+            _ => Failure((Status::BadRequest, "Unable to parse JSON".to_string())),
         }
     }
 }
@@ -140,7 +140,7 @@ pub fn get_regex_string() -> String {
     r"^Pipeline stage \[(?P<stage_name>[\w_]+)/(?P<build_num>\d+)/(?P<step_name>\w+)/\d+\] (?P<pass_fail>passed|failed)".to_string()
 }
 
-fn process_message(message_text: &String, params: &SlackParams, collector: &AcceptBuildInfo) {
+fn process_message(message_text: &str, params: &SlackParams, collector: &AcceptBuildInfo) {
     match params.title_match_regex.captures(message_text) {
         None => info!("Unable to handle message '{}' with regex", message_text),
         Some(captures) => {

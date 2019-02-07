@@ -108,7 +108,7 @@ impl AcceptBuildInfo for BuildInfoManager {
             return;
         }
         if let Some(monitor) = self.info_monitors.iter().find(|im| stage_name.starts_with(&im.filter_prefix)) {
-            let index = BuildInfoIndex { monitor_name: monitor.name.clone(), build_num: build_num };
+            let index = BuildInfoIndex { monitor_name: monitor.name.clone(), build_num };
             let failed = pass_fail == "failed";
             info!("Handling build message for {}", &stage_name);
             match self.message_index.lock().unwrap().entry(index) {
