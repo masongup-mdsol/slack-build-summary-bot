@@ -48,7 +48,7 @@ impl BuildInfoManager {
                 BuildInfoMonitor {
                     name: "Delorean".to_string(),
                     filter_prefix: "Delorean_".to_string(),
-                    post_channel: "C2NFP9P7H".to_string(),
+                    post_channel: "CCDJ9UWAZ".to_string(),
                 }
             ],
         }
