@@ -13,9 +13,10 @@ use regex::Regex;
 use ring::digest::SHA256;
 use ring::hmac::VerificationKey;
 
-
 mod slack;
 use crate::slack::{SlackParams, handle_event_object, get_regex_string, VerifiedSlackJson};
+
+mod gocd;
 
 mod build_info_manager;
 use crate::build_info_manager::{BuildInfoManager};
@@ -87,6 +88,7 @@ impl SlackParams {
                 gocd_bod_id: get_env_var("GOCD_BOD_ID"),
                 instance_token: get_env_var("SLACK_INSTANCE_TOKEN"),
                 title_match_regex: regex,
+                gocd_token: get_env_var("GOCD_TOKEN"),
             }
         }
         else {
@@ -99,6 +101,7 @@ impl SlackParams {
                 gocd_bod_id: "test".to_string(),
                 instance_token: "test".to_string(),
                 title_match_regex: regex,
+                gocd_token: "test".to_string(),
             }
         }
     }
@@ -112,7 +115,7 @@ fn main() {
     let slack_params = SlackParams::from_env(is_prod);
     app
         .mount("/", routes![message_receive, app_status])
-        .manage(BuildInfoManager::new(&slack_params.instance_token))
+        .manage(BuildInfoManager::new(&slack_params.instance_token, &slack_params.gocd_token))
         .manage(slack_params)
         .launch();
 }

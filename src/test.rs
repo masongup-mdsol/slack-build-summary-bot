@@ -4,7 +4,7 @@ use crate::build_info_manager::AcceptBuildInfo;
 use std::cell::RefCell;
 
 struct DummyBuildInfoAcceptor {
-    builds_received: RefCell<Vec<(String, u32)>>,
+    builds_received: RefCell<Vec<(String, u64)>>,
 }
 
 impl DummyBuildInfoAcceptor {
@@ -16,7 +16,7 @@ impl DummyBuildInfoAcceptor {
 }
 
 impl AcceptBuildInfo for DummyBuildInfoAcceptor {
-    fn new_build_message(&self, stage_name: &str, build_num: u32, _build_step: &str, _pass_fail: &str) {
+    fn new_build_message(&self, stage_name: &str, build_num: u64, _build_step: &str, _pass_fail: &str) {
         self.builds_received.borrow_mut().push((stage_name.to_string(), build_num));
     }
 }

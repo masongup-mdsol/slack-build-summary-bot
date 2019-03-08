@@ -28,6 +28,7 @@ pub struct SlackParams {
     pub gocd_bod_id: String,
     pub instance_token: String,
     pub title_match_regex: Regex,
+    pub gocd_token: String,
 }
 
 pub struct VerifiedSlackJson {
@@ -104,7 +105,7 @@ struct Message {
 #[allow(dead_code)]
 struct Attachment {
     color: Option<String>,
-    id: Option<u32>,
+    id: Option<u64>,
     title: Option<String>,
     text: Option<String>,
     fallback: Option<String>,

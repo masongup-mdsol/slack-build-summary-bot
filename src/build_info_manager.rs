@@ -7,8 +7,10 @@ use slack_api::requests::{default_client, Client};
 use chrono::prelude::*;
 use time::Duration;
 
+use crate::gocd::GoCDInfo;
+
 pub trait AcceptBuildInfo {
-    fn new_build_message(&self, stage_name: &str, build_num: u32, build_step: &str, pass_fail: &str);
+    fn new_build_message(&self, stage_name: &str, build_num: u64, build_step: &str, pass_fail: &str);
 }
 
 pub struct BuildInfoManager {
@@ -17,6 +19,7 @@ pub struct BuildInfoManager {
     slack_client: Client,
     last_cleanout_time: RwLock<DateTime<Utc>>,
     info_monitors: Vec<BuildInfoMonitor>,
+    gocd_talker: GoCDInfo
 }
 
 struct BuildInfoEntry {
@@ -34,11 +37,11 @@ struct BuildInfoMonitor {
 #[derive(Hash, PartialEq, Eq)]
 struct BuildInfoIndex {
     monitor_name: String,
-    build_num: u32,
+    git_index: u64,
 }
 
 impl BuildInfoManager {
-    pub fn new(slack_token: &str) -> BuildInfoManager {
+    pub fn new(slack_token: &str, gocd_token: &str) -> BuildInfoManager {
         BuildInfoManager {
             message_index: Mutex::new(HashMap::new()),
             slack_instance_token: slack_token.to_string(),
@@ -51,6 +54,7 @@ impl BuildInfoManager {
                     post_channel: "CCDJ9UWAZ".to_string(),
                 }
             ],
+            gocd_talker: GoCDInfo::create(&gocd_token),
         }
     }
 
@@ -69,6 +73,49 @@ impl BuildInfoManager {
         let mut mutable_cleanout_time = self.last_cleanout_time.write().unwrap();
         *mutable_cleanout_time = Utc::now();
     }
+
+    fn process_build_message(&self, index: BuildInfoIndex, message_text: &str, post_channel: &str, failed: bool) {
+        match self.message_index.lock().unwrap().entry(index) {
+            Entry::Vacant(entry) => {
+                let request = PostMessageRequest {
+                    channel: &post_channel,
+                    text: message_text,
+                    ..Default::default()
+                };
+                info!("About to try to create new message with text: '{}'", &request.text);
+                match post_message(&self.slack_client, &self.slack_instance_token, &request) {
+                    Ok(response) => {
+                        if let Some(timestamp) = response.ts {
+                            entry.insert(BuildInfoEntry {
+                                failed,
+                                slack_timestamp: timestamp,
+                                last_update_time: Utc::now()
+                            });
+                        }
+                    },
+                    Err(error) => error!("Got Slack Post error: {:?}", error),
+                }
+            },
+            Entry::Occupied(mut entry) => {
+                let mut info_entry = entry.get_mut();
+                let request = UpdateRequest {
+                    ts: &info_entry.slack_timestamp,
+                    channel: &post_channel,
+                    text: message_text,
+                    as_user: Some(true),
+                    ..Default::default()
+                };
+                info!("About to try to update moessage with text: '{}'", &request.text);
+                match update(&self.slack_client, &self.slack_instance_token, &request) {
+                    Err(error) => error!("Got Slack Update error: {:?}", error),
+                    Ok(_) => {
+                        info_entry.last_update_time = Utc::now();
+                        info_entry.failed = failed;
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -77,19 +124,19 @@ mod manager_tests {
 
     #[test]
     fn test_clear_old_message_entries() {
-        let manager = BuildInfoManager::new("test_token");
+        let manager = BuildInfoManager::new("test_token", "test_gocd");
         {
             let mut cleanout_time = manager.last_cleanout_time.write().unwrap();
             *cleanout_time = Utc::now() - Duration::days(2);
             let mut index_map = manager.message_index.lock().unwrap();
             index_map.insert(
-                BuildInfoIndex { stage_name: "test".to_string(), build_num: 1 },
+                BuildInfoIndex { monitor_name: "test".to_string(), git_index: 1 },
                 BuildInfoEntry {
                     failed: false, slack_timestamp: "test".to_string(), last_update_time: Utc::now() - Duration::hours(1)
                 }
             );
             index_map.insert(
-                BuildInfoIndex { stage_name: "test".to_string(), build_num: 2 },
+                BuildInfoIndex { monitor_name: "test".to_string(), git_index: 2 },
                 BuildInfoEntry {
                     failed: false, slack_timestamp: "test".to_string(), last_update_time: Utc::now() - Duration::days(1)
                 }
@@ -103,51 +150,23 @@ mod manager_tests {
 }
 
 impl AcceptBuildInfo for BuildInfoManager {
-    fn new_build_message(&self, stage_name: &str, build_num: u32, build_step: &str, pass_fail: &str) {
-        if !stage_name.starts_with("Delorean") {
-            return;
-        }
+    fn new_build_message(&self, stage_name: &str, build_num: u64, build_step: &str, pass_fail: &str) {
         if let Some(monitor) = self.info_monitors.iter().find(|im| stage_name.starts_with(&im.filter_prefix)) {
-            let index = BuildInfoIndex { monitor_name: monitor.name.clone(), build_num };
-            let failed = pass_fail == "failed";
-            info!("Handling build message for {}", &stage_name);
-            match self.message_index.lock().unwrap().entry(index) {
-                Entry::Vacant(entry) => {
-                    let request = PostMessageRequest {
-                        channel: &monitor.post_channel,
-                        text: &format!("GoCD Build for {} has reached step {} on {} and {}",
-                                       &monitor.name, &build_step, &stage_name, &pass_fail),
-                        ..Default::default()
-                    };
-                    info!("About to try to create new message with text: '{}'", &request.text);
-                    match post_message(&self.slack_client, &self.slack_instance_token, &request) {
-                        Ok(response) => {
-                            if let Some(timestamp) = response.ts {
-                                entry.insert(BuildInfoEntry {
-                                    failed,
-                                    slack_timestamp: timestamp,
-                                    last_update_time: Utc::now()
-                                });
-                            }
-                        },
-                        Err(error) => error!("Got Slack Post error: {:?}", error),
-                    }
-                },
-                Entry::Occupied(mut entry) => {
-                    let mut info_entry = entry.get_mut();
-                    let request = UpdateRequest {
-                        ts: &info_entry.slack_timestamp,
-                        channel: &monitor.post_channel,
-                        text: &format!("GoCD Build for stage {} has reached step {} and {}", &stage_name, &build_step, &pass_fail),
-                        as_user: Some(true),
-                        ..Default::default()
-                    };
-                    info!("About to try to update moessage with text: '{}'", &request.text);
-                    match update(&self.slack_client, &self.slack_instance_token, &request) {
-                        Err(error) => error!("Got Slack Update error: {:?}", error),
-                        Ok(_) => {
-                            info_entry.last_update_time = Utc::now();
-                            info_entry.failed = failed;
+            match self.gocd_talker.get_history(stage_name) {
+                Err(err_str) => error!("Error getting GoCD Info: {}", err_str),
+                Ok(history_vec) => {
+                    match history_vec.iter().find(|hv| hv.counter == build_num) {
+                        None => error!("Could not find build info in GoCD!"),
+                        Some(history_item) => {
+                            let index = BuildInfoIndex {
+                                monitor_name: monitor.name.clone(),
+                                git_index: history_item.id,
+                            };
+                            let failed = pass_fail == "failed";
+                            info!("Handling build message for {}", &stage_name);
+                            let message_text = &format!("GoCD Build for {} has reached step {} on {} and {}",
+                                   &monitor.name, &build_step, &stage_name, &pass_fail);
+                            self.process_build_message(index, &message_text, &monitor.post_channel, failed);
                         }
                     }
                 }
@@ -155,5 +174,6 @@ impl AcceptBuildInfo for BuildInfoManager {
         }
         self.clear_old_message_entries();
     }
+
 }
 
