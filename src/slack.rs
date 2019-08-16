@@ -73,8 +73,8 @@ impl FromDataSimple for VerifiedSlackJson {
         //we should blow up
         let verify_key = &request.guard::<rocket::State<SlackParams>>().unwrap().signing_secret;
         let signature = maybe_sig.unwrap();
-        if verify(&verify_key, string_to_sign.as_bytes(), &signature).is_err() {
-            return Failure((Status::Unauthorized , "Failed to verify signature".to_string()));
+        if let Err(e) = verify(&verify_key, string_to_sign.as_bytes(), &signature) {
+            return Failure((Status::Unauthorized , format!("Failed to verify signature: {}", e)));
         }
 
         match serde_json::from_str(&raw_request) {
@@ -111,7 +111,7 @@ struct Attachment {
     fallback: Option<String>,
 }
 
-pub fn handle_event_object(event: &serde_json::map::Map<String, Value>, params: &SlackParams, collector: &AcceptBuildInfo) -> Result<Json<Value>, String> {
+pub fn handle_event_object(event: &serde_json::map::Map<String, Value>, params: &SlackParams, collector: &dyn AcceptBuildInfo) -> Result<Json<Value>, String> {
     match event.get("type").and_then(|t| t.as_str()) {
         Some("message") => {
             match serde_json::from_value::<Message>(Value::Object(event.clone())) {
@@ -141,7 +141,7 @@ pub fn get_regex_string() -> String {
     r"^Pipeline stage \[(?P<stage_name>[\w_]+)/(?P<build_num>\d+)/(?P<step_name>\w+)/\d+\] (?P<pass_fail>passed|failed)".to_string()
 }
 
-fn process_message(message_text: &str, params: &SlackParams, collector: &AcceptBuildInfo) {
+fn process_message(message_text: &str, params: &SlackParams, collector: &dyn AcceptBuildInfo) {
     match params.title_match_regex.captures(message_text) {
         None => info!("Unable to handle message '{}' with regex", message_text),
         Some(captures) => {
